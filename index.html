@@ -17,6 +17,33 @@
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Dancing+Script:wght@600;700&family=Caveat:wght@600;700&display=swap&subset=vietnamese" rel="stylesheet">
 
     <style>
+        .auth-bar {
+            position: absolute; top: 20px; right: 20px;
+            display: flex; gap: 10px; z-index: 100;
+        }
+        .btn-auth {
+            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(8px);
+            border: 1px solid var(--accent); padding: 8px 16px; border-radius: 20px;
+            font-family: 'Be Vietnam Pro', sans-serif; font-size: 13px; font-weight: 700;
+            color: var(--text-dark); cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .rank-badge {
+            display: none; align-items: center; gap: 5px;
+            padding: 8px 16px; border-radius: 20px;
+            font-family: 'Be Vietnam Pro', sans-serif; font-size: 13px; font-weight: 800;
+            color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .auth-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 999;
+            justify-content: center; align-items: center;
+        }
+        .auth-box {
+            background: var(--card-bg); padding: 30px; border-radius: 20px; width: 90%; max-width: 400px;
+            text-align: center; position: relative; border: 1px solid var(--border);
+        }
+        .close-auth { position: absolute; top: 15px; right: 20px; cursor: pointer; font-size: 20px; font-weight: bold; }
+        
         :root { 
             --text-dark: #2a1f18; --text-light: #5a4634;
             --card-bg: rgba(255, 253, 248, 0.85); 
@@ -241,6 +268,31 @@
     </style>
 </head>
 <body>
+    <div class="auth-bar">
+        <div id="rank-badge" class="rank-badge">👑 Chờ tải...</div>
+        <button id="btn-login-modal" class="btn-auth" onclick="document.getElementById('auth-modal').style.display='flex'">Đăng nhập</button>
+        <button id="btn-logout" class="btn-auth" style="display:none;" onclick="handleLogout()">Đăng xuất</button>
+    </div>
+
+    <div id="auth-modal" class="auth-modal">
+        <div class="auth-box">
+            <span class="close-auth" onclick="document.getElementById('auth-modal').style.display='none'">&times;</span>
+            <h2 style="margin-top:0;">Tài khoản PolaroidAR</h2>
+            <p style="font-size: 13px; color: var(--text-light);">Đăng nhập để lưu thẻ và nhận Rank đặc biệt!</p>
+            <div class="input-group">
+                <input type="email" id="auth-email" placeholder="Email của bạn">
+            </div>
+            <div class="input-group">
+                <input type="password" id="auth-pass" placeholder="Mật khẩu">
+            </div>
+            <button class="btn-submit" onclick="handleLogin()" style="margin-bottom: 10px;">Đăng Nhập</button>
+            <button class="btn-secondary" onclick="handleRegister()">Đăng Ký Mới</button>
+        </div>
+    </div>
+
+    <div class="brand-header">
+        <h1>Polaroid<span>AR</span></h1>
+    </div>
 
     <div id="toast-container"></div>
 
@@ -387,6 +439,8 @@
     const supabaseKey = 'sb_publishable_noPrqgubuZS1dgUPlsnOKw_aOnRdWN0';
     const mySupabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
+    let currentUser = null;
+    
     function showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
@@ -400,6 +454,82 @@
             setTimeout(() => toast.remove(), 300); 
         }, 3500);
     }
+
+    const RANK_CONFIG = {
+        founder: { name: "Nhà Sáng Lập", color: "linear-gradient(135deg, #ff4d4d, #f9ca24)", icon: "👑" },
+        developer: { name: "Nhà Phát Triển", color: "linear-gradient(135deg, #00d2d3, #54a0ff)", icon: "💻" },
+        partner: { name: "Đối Tác Chiến Lược", color: "linear-gradient(135deg, #10ac84, #1dd1a1)", icon: "🤝" },
+        iron: { name: "Sắt", color: "#8395a7", icon: "🪙" },
+        bronze: { name: "Đồng", color: "#d5a173", icon: "🟫" },
+        silver: { name: "Bạc", color: "#c0c0c0", icon: "⬜" },
+        gold: { name: "Vàng", color: "#ffd700", icon: "🟨" },
+        diamond: { name: "Kim Cương", color: "#74b9ff", icon: "💎" }
+    };
+
+    function calculateRank(role, cardsCount) {
+        if (role === 'founder') return RANK_CONFIG.founder;
+        if (role === 'developer') return RANK_CONFIG.developer;
+        if (role === 'partner') return RANK_CONFIG.partner;
+        if (cardsCount < 5) return RANK_CONFIG.iron;
+        if (cardsCount < 15) return RANK_CONFIG.bronze;
+        if (cardsCount < 35) return RANK_CONFIG.silver;
+        if (cardsCount < 70) return RANK_CONFIG.gold;
+        return RANK_CONFIG.diamond;
+    }
+    
+    async function checkUser() {
+        const { data: { user } } = await mySupabase.auth.getUser();
+        if (user) {
+            currentUser = user;
+            document.getElementById('btn-login-modal').style.display = 'none';
+            document.getElementById('btn-logout').style.display = 'block';
+            document.getElementById('rank-badge').style.display = 'flex';
+            
+            const { data: profile } = await mySupabase.table('profiles').select('role').eq('id', user.id).single();
+            const { count } = await mySupabase.table('polaroids').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
+            
+            const role = profile ? profile.role : 'member';
+            const userRank = calculateRank(role, count || 0);
+            
+            const badge = document.getElementById('rank-badge');
+            badge.innerHTML = `${userRank.icon} ${userRank.name}`;
+            badge.style.background = userRank.color;
+        } else {
+            currentUser = null;
+            document.getElementById('btn-login-modal').style.display = 'block';
+            document.getElementById('btn-logout').style.display = 'none';
+            document.getElementById('rank-badge').style.display = 'none';
+        }
+    }
+
+    async function handleLogin() {
+        const email = document.getElementById('auth-email').value;
+        const password = document.getElementById('auth-pass').value;
+        const { error } = await mySupabase.auth.signInWithPassword({ email, password });
+        if(error) showToast("Sai email hoặc mật khẩu!", "error");
+        else { document.getElementById('auth-modal').style.display='none'; checkUser(); showToast("Đăng nhập thành công!", "success"); }
+    }
+
+    async function handleRegister() {
+        const email = document.getElementById('auth-email').value;
+        const password = document.getElementById('auth-pass').value;
+        const { error } = await mySupabase.auth.signUp({ email, password });
+        if(error) showToast(error.message, "error");
+        else { showToast("Đăng ký thành công! Hãy kiểm tra Email (nếu cần).", "success"); handleLogin(); }
+    }
+
+    async function handleLogout() {
+        await mySupabase.auth.signOut();
+        checkUser(); showToast("Đã đăng xuất!", "info");
+    }
+
+    window.onload = () => { 
+        initCreateMode(); 
+        initLiveTextPreview();
+        checkUser();
+    };
+
+
 
     async function checkMaintenanceStatus() {
         try {
@@ -526,10 +656,15 @@
         btn.innerHTML = "⏳ Đang mã hóa dữ liệu..."; btn.disabled = true;
 
         try {
+            const payload = { sender, recipient, message, short_id: shortId };
+            if (currentUser) payload.user_id = currentUser.id;
             const exportWidth = 900;
             const exportHeight = Math.round(exportWidth / currentAspectRatio);
             const canvas = cropper.getCroppedCanvas({ width: exportWidth, height: exportHeight });
             const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+            const { error: insertError } = await mySupabase.from('polaroids').insert([payload]);
+            if (insertError) throw new Error("Lỗi đường truyền.");
             
             const { error: insertError } = await mySupabase.from('polaroids').insert([{ sender, recipient, message, short_id: shortId }]);
             if (insertError) throw new Error("Lỗi đường truyền, không thể gửi dữ liệu.");
@@ -538,6 +673,7 @@
             if (checkError || !checkData || checkData.short_id !== shortId) throw new Error("Dữ liệu chưa được ghi nhận. Vui lòng thử lại!");
 
             showToast("Tuyệt vời! Tạo thẻ thành công.", "success");
+            if(currentUser) checkUser();
             currentFilename = recipient.replace(/[^a-zA-Z0-9]/gi, '_').toLowerCase();
             const displayNames = `${recipient} & ${sender}`;
             const qrUrl = "https://huynhthinhlouis.github.io/polaroidar/ar.html";
