@@ -402,13 +402,7 @@
     }
 
     async function checkMaintenanceStatus() {
-        try {
-            const { data, error } = await mySupabase.from('app_settings').select('*').eq('id', 1).maybeSingle();
-            if (data && data.is_maintenance) {
-                document.body.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#2a1f18; color:#fbf7f0; font-family:'Be Vietnam Pro', sans-serif; text-align:center; padding: 20px;"><h1 style="color:#d4a373; font-size: 32px; margin-bottom: 10px;">⚙️ HỆ THỐNG ĐANG BẢO TRÌ</h1><p style="font-size: 16px; line-height: 1.6; max-width: 500px; color: #c8b495;">${data.maintenance_msg}</p></div>`;
-                throw new Error("Maintenance mode active"); 
-            }
-        } catch (err) { if(err.message === "Maintenance mode active") throw err; }
+        document.body.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#2a1f18; color:#fbf7f0; font-family:'Be Vietnam Pro', sans-serif; text-align:center; padding: 20px;"><h1 style="color:#d4a373; font-size: 32px; margin-bottom: 10px;">⚙️ HỆ THỐNG ĐANG BẢO TRÌ</h1><p style="font-size: 16px; line-height: 1.6; max-width: 500px; color: #c8b495;">Hệ thống tạm ngưng hoạt động để bắt đầu quá trình chuyển đổi cơ sở dữ liệu, chúng tôi sẽ hoàn thiện sớm nhất có thể!</p></div>`;
     }
     checkMaintenanceStatus();
 
